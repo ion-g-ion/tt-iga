@@ -28,19 +28,17 @@ def solve(Ns,deg,nl,alpha=1/4,eps_solver = 10*1e-9,eps_construction=1e-11,qtt = 
     yparam = lambda t : yc(t[:,0]*2-1,t[:,1]*2-1)*((1+np.cos((t[:,2]*2-1)*np.pi))*alpha*t[:,3]+1)
     zparam = lambda t : t[:,2]*2-1
 
-    geom = tt_iga.Geometry(Basis+Basis_param)
-    geom.interpolate([xparam, yparam, zparam])      
-
+    geom = tt_iga.PatchBSpline.interpolate_geometry([xparam, yparam, zparam], Basis, Basis_param)
 
     tme = datetime.datetime.now() 
-    Mass_tt = geom.mass_interp(eps=1e-12)
+    Mass_tt = geom.mass_interp(Basis, eps=1e-12)
     tme = datetime.datetime.now() -tme
     print('Time mass matrix ',tme.total_seconds())
     tme_mass = tme.total_seconds()
     
     
     tme = datetime.datetime.now() 
-    Stiff_tt = geom.stiffness_interp( eps = eps_construction, qtt = False, verb=False)
+    Stiff_tt = geom.stiffness_interp(Basis, eps = eps_construction, qtt = False, verb=False)
     tme = datetime.datetime.now() -tme
     print('Time stiffness matrix ',tme.total_seconds())
     tme_stiff = tme.total_seconds()

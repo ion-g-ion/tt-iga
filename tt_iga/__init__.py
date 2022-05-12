@@ -1,7 +1,7 @@
 """
 
 """
-from .tt_iga import Function, Geometry
+from .tt_iga import Function, Geometry, PatchNURBS, PatchBSpline
 from . import bspline 
 from . import lagrange
 from . import projectors
