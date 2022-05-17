@@ -11,7 +11,7 @@ import pandas as pd
 tn.set_default_dtype(tn.float64)
 
    
-Ns = [8]*3
+Ns = [100]*3
 deg = 2
 nl = 8
 alpha = 1/4 
@@ -44,7 +44,7 @@ tme_mass = tme.total_seconds()
 
 
 tme = datetime.datetime.now() 
-Stiff_tt = geom.stiffness_interp(Basis, eps = eps_construction, qtt = False, verb=False)
+Stiff_tt = geom.stiffness_interp(Basis, eps = eps_construction, qtt = False, verb=True)
 tme = datetime.datetime.now() -tme
 print('Time stiffness matrix ',tme.total_seconds())
 tme_stiff = tme.total_seconds()
@@ -113,7 +113,7 @@ err_Linf = err_L2
 print('Computed L2 ',err_Linf)
 
 xyz = geom([tn.linspace(0,1,100),tn.linspace(0,1,100), tn.tensor([0.5]), tn.tensor([1.0])])
-u = uref_fun([tn.linspace(0,1,100),tn.linspace(0,1,100), tn.tensor([0.5]), tn.tensor([1.0])])
+u = solution([tn.linspace(0,1,100),tn.linspace(0,1,100), tn.tensor([0.5]), tn.tensor([1.0])])
 
 ref = uref(np.concatenate((xyz[0].numpy().flatten()[:,None],xyz[1].numpy().flatten()[:,None],xyz[2].numpy().flatten()[:,None]),-1)).reshape([100,100])
 

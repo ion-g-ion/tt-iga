@@ -593,10 +593,15 @@ class GeometryPatch():
 
     def eval_omega(self, y, eps = 1e-12):
         if self.d==3 and self.dembedding:
-            G11, G12, G13 = self.__call__(y, 0)
-            G21, G22, G23 = self.__call__(y, 1)
-            G31, G32, G33 = self.__call__(y, 2)
+            #G11, G12, G13 = self.__call__(y, 0)
+            #G21, G22, G23 = self.__call__(y, 1)
+            #G31, G32, G33 = self.__call__(y, 2)
 
+            G11, G21, G31 = self.__call__(y, 0, eps = eps)
+            G12, G22, G32 = self.__call__(y, 1, eps = eps)
+            G13, G23, G33 = self.__call__(y, 2, eps = eps)
+
+            
             det1 = G11*G22*G33
             det2 = G12*G21*G31
             det3 = G31*G21*G32
@@ -715,6 +720,10 @@ class GeometryPatch():
             Ogi_tt = (Ogi_tt * F_tt).round(eps)
         
         if self.d == 3:
+            # g11, g12, g13 = self.__call__(ps, 0)
+            # g21, g22, g23 = self.__call__(ps, 1)
+            # g31, g32, g33 = self.__call__(ps, 2)
+
             g11, g21, g31 = self.__call__(ps, 0)
             g12, g22, g32 = self.__call__(ps, 1)
             g13, g23, g33 = self.__call__(ps, 2)
@@ -809,7 +818,7 @@ class GeometryPatch():
                 
                 
                 tme = datetime.datetime.now()
-                print(len(cores),len(band_size))
+                
                 ss = tntt.TT([tn.tensor(bandcore2ttcore(cores[i].cpu().numpy(),band_size[i])) for i in range(len(cores))]).to(device)
 
                 
@@ -851,11 +860,16 @@ class PatchNURBS(GeometryPatch):
         else:
             self.bounds = bounds
             
-    def __call__(self, y, derivative = None):
+    def __call__(self, y, derivative = None, eps = 1e-14):
         Bs = [tn.tensor(self.basis[i](y[i])).t() for i in range(self.d)]
         Btt = tntt.rank1TT(Bs) ** (None if self.np==0 else tntt.eye(self.control_points.N[self.d:]))
         den = Btt @ self.weights # self.weights.mprod(Bs, list(range(self.d)))
-        deninv = tntt.TT([1/c for c in den.cores])
+        
+        if all([e==1 for e in den.R]):
+            deninv = tntt.TT([1/c for c in den.cores])
+        else:
+            deninv = (1/den)
+            
 
         result = []
 
@@ -873,7 +887,7 @@ class PatchNURBS(GeometryPatch):
                 tmp = (dBtt @ (self.weights*ctl))*den- (Btt @ (self.weights*ctl)) * (dBtt @ self.weights)
                 result.append(tmp*deninv*deninv)
 
-        return result
+        return [r.round(eps) for r in result]
                 
     @staticmethod
     def interpolate_control_points(func, basis_geometry, basis_params):

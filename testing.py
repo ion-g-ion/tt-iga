@@ -31,7 +31,10 @@ points = [tntt.TT(points[...,0]), tntt.TT(points[...,1]), tntt.TT(points[...,2])
 
 weights = tn.ones((3,3,3))
 weights[:,:,1] = 1/np.sqrt(2)
+weights = weights/2
 weights = tntt.TT(weights)
+weights = weights+weights
+
 
 basis1 = tt_iga.bspline.BSplineBasis(np.linspace(-1,1,2),2)
 basis2 = tt_iga.bspline.BSplineBasis(np.linspace(-1,1,2),2)
