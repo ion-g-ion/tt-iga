@@ -592,7 +592,7 @@ class GeometryPatch():
         pass
 
     def eval_omega(self, y, eps = 1e-12):
-        if self.d==3 and self.dembedding:
+        if self.d==3 and self.dembedding==3:
             #G11, G12, G13 = self.__call__(y, 0)
             #G21, G22, G23 = self.__call__(y, 1)
             #G31, G32, G33 = self.__call__(y, 2)
@@ -610,7 +610,14 @@ class GeometryPatch():
             det6 = G12*G21*G33
        
             res = (det1 + det2 + det3 - det4 - det5 - det6).round(eps)
-            return res 
+            
+        elif self.d==2:
+            G11, G21 = self.__call__(y, 0, eps = eps)
+            G12, G22 = self.__call__(y, 1, eps = eps)
+       
+            res = (G11*G22-G21*G12).round(eps)
+            
+        return res 
 
     def mass_interp(self, basis_space, eps = 1e-12):
         """
@@ -627,7 +634,8 @@ class GeometryPatch():
         
         for bs, bg in zip(basis_space, self.basis):
             if not all(x in bs.knots for x in bg.knots) or bs.deg!=bg.deg:
-                raise Exception("Knots of the FunctionSpace for the solution need to be a superset of the ones for the geometry description.")
+                pass
+                # raise Exception("Knots of the FunctionSpace for the solution need to be a superset of the ones for the geometry description.")
             p, w = points_basis(bs)
             ps.append(p)
             ws.append(w)    
@@ -664,7 +672,8 @@ class GeometryPatch():
         
         for bs, bg in zip(basis_space, self.basis):
             if not all(x in bs.knots for x in bg.knots) or bs.deg!=bg.deg:
-                raise Exception("Knots of the FunctionSpace for the solution need to be a superset of the ones for the geometry description.")
+                # raise Exception("Knots of the FunctionSpace for the solution need to be a superset of the ones for the geometry description.")
+                pass
             p, w = points_basis(bs, mult = 2)
             ps.append(tn.tensor(p))
             ws.append(tn.tensor(w))
@@ -719,15 +728,11 @@ class GeometryPatch():
         else: 
             Ogi_tt = (Ogi_tt * F_tt).round(eps)
         
+        
         if self.d == 3:
-            # g11, g12, g13 = self.__call__(ps, 0)
-            # g21, g22, g23 = self.__call__(ps, 1)
-            # g31, g32, g33 = self.__call__(ps, 2)
-
             g11, g21, g31 = self.__call__(ps, 0)
             g12, g22, g32 = self.__call__(ps, 1)
             g13, g23, g33 = self.__call__(ps, 2)
-
             if device!=None:
                 g11 = g11.to(device)
                 g12 = g12.to(device)
@@ -738,7 +743,17 @@ class GeometryPatch():
                 g31 = g31.to(device)
                 g32 = g32.to(device)
                 g33 = g33.to(device)
-        
+        elif self.d==2:
+            g11, g21 = self.__call__(ps, 0)
+            g12, g22 = self.__call__(ps, 1)
+            
+            if device!=None:
+                g11 = g11.to(device)
+                g12 = g12.to(device)
+                g21 = g21.to(device)
+                g22 = g22.to(device)
+    
+        if self.d==3:
             # adjugate
             tme = datetime.datetime.now()
             h11,h12,h13 = (g22*g33-g23*g32, g13*g32-g12*g33, g12*g23-g13*g22)
@@ -750,9 +765,14 @@ class GeometryPatch():
 
             tme = datetime.datetime.now() -tme
             if verb: print('H computed in' , tme)
+        elif self.d==2:
+            h11, h12 = (g22,-g12)
+            h21, h22 = (-g21,g11)
+            H = [[h11.round(eps),h12.round(eps)],[h21.round(eps),h22.round(eps)]]
+            
         
-        Bs = [tn.tensor(basis_space[i](ps[i]).transpose()).to(device) for i in range(3)]
-        dBs = [tn.tensor(basis_space[i](ps[i],derivative = True).transpose()).to(device) for i in range(3)]
+        Bs = [tn.tensor(basis_space[i](ps[i]).transpose()).to(device) for i in range(self.d)]
+        dBs = [tn.tensor(basis_space[i](ps[i],derivative = True).transpose()).to(device) for i in range(self.d)]
                 
         N = [b.N for b in basis_space]+self.ells
         S = None
@@ -775,6 +795,9 @@ class GeometryPatch():
 
                 if self.d==3:
                     tmp = H[alpha][0]*H[beta][0]+H[alpha][1]*H[beta][1]+H[alpha][2]*H[beta][2]
+                elif self.d==2:
+                    tmp = H[alpha][0]*H[beta][0]+H[alpha][1]*H[beta][1]
+                    
                 tmp = tmp.round(eps,rankinv)
                 tme = datetime.datetime.now() -tme
                 if verb: print('\ttime 1 ' , tme)
@@ -862,7 +885,8 @@ class PatchNURBS(GeometryPatch):
             
     def __call__(self, y, derivative = None, eps = 1e-14):
         Bs = [tn.tensor(self.basis[i](y[i])).t() for i in range(self.d)]
-        Btt = tntt.rank1TT(Bs) ** (None if self.np==0 else tntt.eye(self.control_points.N[self.d:]))
+        
+        Btt = tntt.TT([mat[None,...,None] for mat in Bs]) ** (None if self.np==0 else tntt.eye(self.control_points.N[self.d:]))
         den = Btt @ self.weights # self.weights.mprod(Bs, list(range(self.d)))
         
         if all([e==1 for e in den.R]):

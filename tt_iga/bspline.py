@@ -87,6 +87,9 @@ class BSplineBasis:
         # self.int_bspp_bspp = int_bspp
         self.int_bsp = int_bsp
         
+    def __repr__(self):
+        s = 'B-Spline basis of degree '+str(self.deg)+' and dimension '+str(self.N)+' at '+str(id(self))
+        return s
     
     def __call__(self,x,i=None,derivative=False):
         """
