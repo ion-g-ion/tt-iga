@@ -87,28 +87,28 @@ plt.figure()
 plt.scatter(knots[:,:,0],knots[:,:,1],s=2)
 
 basis1 = tt_iga.bspline.BSplineBasis(np.array([0,0.4,0.4,0.6,0.6,1]),2)
-basis2 = tt_iga.bspline.BSplineBasis(np.linspace(0,1,5),1)
+basis2 = tt_iga.bspline.BSplineBasis(np.array([0,0.15,0.3,0.5,1]),1)
 
 geom = tt_iga.PatchNURBS([basis1, basis2],[], [tntt.TT(knots[:,:,0]), tntt.TT(knots[:,:,1])], tntt.TT(weights))
 
-y1, y2 = np.linspace(0.4,0.6,64), np.linspace(0,0.75,64)
+y1, y2 = np.linspace(0.4,0.6,64), np.linspace(0,0.5,64)
 X1,X2 = geom([y1,y2])
 plt.figure()
 plt.scatter(X1.numpy().flatten(), X2.numpy().flatten(),s=1,c='orange')
 
-y1, y2 = np.linspace(0,0.4,64), np.linspace(0,0.5,64)
+y1, y2 = np.linspace(0,0.4,64), np.linspace(0,0.3,64)
 X1,X2 = geom([y1,y2])
 plt.scatter(X1.numpy().flatten(), X2.numpy().flatten(),s=1,c='blue')
 
-y1, y2 = np.linspace(0.6,1,64), np.linspace(0,0.75,64)
+y1, y2 = np.linspace(0.6,1,64), np.linspace(0,0.5,64)
 X1,X2 = geom([y1,y2])
 plt.scatter(X1.numpy().flatten(), X2.numpy().flatten(),s=1,c='red')
 
-y1, y2 = np.linspace(0,1,128), np.linspace(0.75,1,128)
+y1, y2 = np.linspace(0,1,128), np.linspace(0.5,1,128)
 X1,X2 = geom([y1,y2])
 plt.scatter(X1.numpy().flatten(), X2.numpy().flatten(),s=1,c='red')
 
-y1, y2 = np.linspace(0,0.4,64), np.linspace(0.5,0.75,64)
+y1, y2 = np.linspace(0,0.4,64), np.linspace(0.3,0.5,64)
 X1,X2 = geom([y1,y2])
 plt.scatter(X1.numpy().flatten(), X2.numpy().flatten(),s=1,c='red')
 
@@ -117,7 +117,16 @@ X1,X2 = geom([y1,y2])
 plt.figure()
 plt.scatter(X1.numpy().flatten(), X2.numpy().flatten(),s=1,c='green')
 
+
+mu0 = 4*np.pi*1e-7
+mur = 1000
+mu_ref = lambda y: mu0*((y[...,1]<0.5)*(y[...,0]<0.6)*(y[...,0]>0.4)+(y[...,1]<0.3)*(y[...,0]<0.4))+mu0*mur*tn.logical_not((y[...,1]<0.5)*(y[...,0]<0.6)*(y[...,0]>0.4)+(y[...,1]<0.3)*(y[...,0]<0.4))
+
 basis_solution = [tt_iga.bspline.BSplineBasis(np.concatenate((np.linspace(0,0.4,32), np.linspace(0.4,0.6,16),np.linspace(0.6,1,32))),2)]
-basis_solution.append(tt_iga.bspline.BSplineBasis(np.concatenate((np.linspace(0,0.25,20),np.linspace(0.25,0.5,20), np.linspace(0.5,0.75,20),np.linspace(0.75,1,20))),2))
+basis_solution.append(tt_iga.bspline.BSplineBasis(np.concatenate((np.linspace(0,0.15,20),np.linspace(0.15,0.3,20), np.linspace(0.3,0.5,20),np.linspace(0.5,1,20))),2))
 Mass_tt = geom.mass_interp(basis_solution)
-Stiff_tt = geom.stiffness_interp(basis_solution)
+Stiff_tt = geom.stiffness_interp(basis_solution, func_reference=mu_ref)
+
+Jref = lambda y: 10*(y[...,1]<0.5)*(y[...,0]<0.6)*(y[...,0]>0.4)+0.0
+
+rhs_tt = geom.rhs_interp(basis_solution,Jref)
