@@ -645,7 +645,15 @@ class PatchNURBS(GeometryPatch):
         
                
         return PatchNURBS(basis_new,knots_new, weights_new, self.rand_key, bounds=bounds_new)
+    
+    @staticmethod
+    def interpolate_parameter_dependent(self, control_points_function, weights_function, basis_solution, basis_param):
+        
+        parameter_grid = []
+        
 
+        return self.__init__(basis_solution, basis_param, control_points, weights)
+    
 class PatchBSpline(GeometryPatch):
 
     def __init__(self, basis, basis_param, control_points = None):

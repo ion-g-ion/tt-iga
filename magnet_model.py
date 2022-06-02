@@ -16,8 +16,8 @@ tn.set_default_dtype(tn.float64)
 
 
 
-def create_geometry( scale = 1):
-    scale = scale
+def create_geometry( ):
+    
     Nt = 24                                                                
     lz = 40e-3                                                             
     Do = 72e-3                                                            
@@ -120,13 +120,53 @@ plt.scatter(X1.numpy().flatten(), X2.numpy().flatten(),s=1,c='green')
 
 mu0 = 4*np.pi*1e-7
 mur = 1000
-mu_ref = lambda y: mu0*((y[...,1]<0.5)*(y[...,0]<0.6)*(y[...,0]>0.4)+(y[...,1]<0.3)*(y[...,0]<0.4))+mu0*mur*tn.logical_not((y[...,1]<0.5)*(y[...,0]<0.6)*(y[...,0]>0.4)+(y[...,1]<0.3)*(y[...,0]<0.4))
+mu_ref = lambda y: 1/mu0*((y[...,1]<0.5)*(y[...,0]<0.6)*(y[...,0]>0.4)+(y[...,1]<0.3)*(y[...,0]<0.4))+1/(mu0*mur)*tn.logical_not((y[...,1]<0.5)*(y[...,0]<0.6)*(y[...,0]>0.4)+(y[...,1]<0.3)*(y[...,0]<0.4))
 
 basis_solution = [tt_iga.bspline.BSplineBasis(np.concatenate((np.linspace(0,0.4,32), np.linspace(0.4,0.6,16),np.linspace(0.6,1,32))),2)]
 basis_solution.append(tt_iga.bspline.BSplineBasis(np.concatenate((np.linspace(0,0.15,20),np.linspace(0.15,0.3,20), np.linspace(0.3,0.5,20),np.linspace(0.5,1,20))),2))
 Mass_tt = geom.mass_interp(basis_solution)
 Stiff_tt = geom.stiffness_interp(basis_solution, func_reference=mu_ref)
 
-Jref = lambda y: 10*(y[...,1]<0.5)*(y[...,0]<0.6)*(y[...,0]>0.4)+0.0
+Jref = lambda y: 1000000*(y[...,1]<0.5)*(y[...,0]<0.6)*(y[...,0]>0.4)+0.0
 
 rhs_tt = geom.rhs_interp(basis_solution,Jref)
+
+P1 = tn.eye(Mass_tt.N[0])
+P2 = tn.eye(Mass_tt.N[0])
+P2[-1,-1] = 0
+P1[0,0] = 0
+P1[-1,-1] = 0
+Pin_tt = tntt.rank1TT([P1,P2])
+Pbd_tt = tntt.eye(Mass_tt.N) - Pin_tt
+
+M_tt = (Pin_tt@Stiff_tt+Pbd_tt).round(1e-12)
+rhs_tt = (Pin_tt @ rhs_tt + 0).round(1e-12)
+
+print('System matrix... ',flush=True)
+
+
+print('Rank Mtt ',M_tt.R)
+print('Rank rhstt ',rhs_tt.R)
+
+tme = datetime.datetime.now() 
+# dofs_tt = tntt.solvers.amen_solve(M_tt.cuda(), rhs_tt.cuda(), x0 = tntt.ones(rhs_tt.N).cuda(), eps = eps_solver, nswp = 50, kickrank = 4, preconditioner = 'c', verbose = False).cpu()
+dofs_tt = tntt.solvers.amen_solve(M_tt, rhs_tt, x0 = tntt.ones(rhs_tt.N), eps = 1e-8, nswp = 60, kickrank = 4, preconditioner = 'c', verbose = True)
+tme = datetime.datetime.now() - tme
+print('Time system solve ',tme,flush=True)
+
+
+
+plt.figure()
+y1, y2 = np.linspace(0,1,201), np.linspace(0.,1,201)
+X1,X2 = geom([y1,y2])
+u = dofs_tt.mprod([tn.tensor(basis_solution[0](y1).T),tn.tensor(basis_solution[1](y2).T)],[0,1])
+plt.contourf(X1.numpy(), X2.numpy(),u.numpy(),levels=32)
+plt.colorbar()
+
+
+plt.figure()
+y1, y2 = np.linspace(0,1,201), np.linspace(0.,1,201)
+X1,X2 = geom([y1,y2])
+u = dofs_tt.mprod([tn.tensor(basis_solution[0](y1).T),tn.tensor(basis_solution[1](y2).T)],[0,1])
+plt.contour(X1.numpy(), X2.numpy(),u.numpy(),levels=32)
+plt.colorbar()
