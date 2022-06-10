@@ -299,16 +299,17 @@ class GeometryPatch():
         Xg = [tn.tensor(b.interpolating_points()[0], dtype = tn.float64) for b in self.basis]
       
         if reference:
-            Xs = tntt.meshgrid(ps)
+            Xs = tntt.meshgrid(ps+[tn.ones(n) for n in self.ells])[:self.d]
         else:
             Xs = self(ps)
 
         if self.np==0:
             evals = tntt.interpolate.function_interpolate(function, Xs, eps)
         else:
-            Np = len(self.basis[3:])
+            Np = len(self.basis[self.d:])
             meshgrid = tntt.meshgrid([x for x in Xg[self.d:]])
             meshgrid = Xs + [tntt.ones(Xs[0].N[:self.d])**m for m in meshgrid]
+            print(meshgrid)
             evals = tntt.interpolate.function_interpolate(function, meshgrid, eps, verbose = False)
             
 
@@ -318,7 +319,7 @@ class GeometryPatch():
         if self.np!=0:
             Btt = Btt**tntt.eye(self.ells)
             Wtt = Wtt**tntt.ones(self.ells)
-            
+
         return (Btt@(evals*omega*Wtt)).round(eps)
 
     def stiffness_interp(self, basis_space, eps = 1e-10, func = None, func_reference = None, rankinv = 1024, device = None, verb = False, qtt = False):
@@ -452,7 +453,7 @@ class GeometryPatch():
         Hs = dict()
         
         # the size of the bands
-        band_size = [b.deg for b in basis_space[:3]]+[1]*len(N[3:])
+        band_size = [b.deg for b in basis_space[:self.d]]+[1]*self.np
 
         if qtt: 
             for i in range(self.d):
@@ -530,7 +531,7 @@ class GeometryPatch():
             if verb: print('\ttime ROUND ' , tme)
         
         cores = SS.cores
-        SS = tntt.TT([tn.tensor(ttcore2bandcore(cores[i].cpu().numpy(),N[i],band_size[i])) for i in range(len(N))])
+        SS = tntt.TT([tn.tensor(ttcore2bandcore(cores[i].cpu().numpy(),N[i],band_size[i])) for i in range(len(cores))])
 
         return SS
 
@@ -551,14 +552,17 @@ class PatchNURBS(GeometryPatch):
             self.weights = weights**tntt.ones(self.ells)
             
         if bounds == None:
-            self.bounds = [(b.knots[0],b.knots[-1]) for b in self.basis]
+            self.bounds = [(b.interval[0],b.interval[-1]) for b in self.basis]
         else:
             self.bounds = bounds
             
     def __call__(self, y, derivative = None, eps = 1e-14):
-        Bs = [tn.tensor(self.basis[i](y[i])).t() for i in range(self.d)]
-        
-        Btt = tntt.TT([mat[None,...,None] for mat in Bs]) ** (None if self.np==0 else tntt.eye(self.control_points.N[self.d:]))
+        if len(y) == self.d:
+            Bs = [tn.tensor(self.basis[i](y[i])).t() for i in range(self.d)]
+            Btt = tntt.TT([mat[None,...,None] for mat in Bs]) ** (None if self.np==0 else tntt.eye(self.ells))
+        if len(y) == self.d+self.np:
+            Bs = [tn.tensor(self.basis[i](y[i])).t() for i in range(self.d+self.np)]
+            Btt = tntt.rank1TT(Bs)
         den = Btt @ self.weights # self.weights.mprod(Bs, list(range(self.d)))
         
         if all([e==1 for e in den.R]):
@@ -577,7 +581,7 @@ class PatchNURBS(GeometryPatch):
                 result.append( (tmp @ ctl) * deninv )
         else:
             dBs = [tn.tensor(self.basis[i](y[i], derivative = derivative==i)).t() for i in range(self.d)]
-            dBtt = tntt.rank1TT(dBs) ** (None if self.np==0 else tntt.eye(self.control_points.N[self.d:]))
+            dBtt = tntt.rank1TT(dBs) ** (None if self.np==0 else tntt.eye(self.ells))
 
             for ctl in self.control_points:
                 tmp = (dBtt @ (self.weights*ctl))*den- (Btt @ (self.weights*ctl)) * (dBtt @ self.weights)
@@ -585,10 +589,6 @@ class PatchNURBS(GeometryPatch):
 
         return [r.round(eps) for r in result]
                 
-    @staticmethod
-    def interpolate_control_points(func, basis_geometry, basis_params):
-         pass
-
     def __repr__(self):
         if self.d == 1:
             s = 'NURBS curve'
@@ -608,14 +608,14 @@ class PatchNURBS(GeometryPatch):
         
     def __getitem__(self, key):
          
-        if len(key) != self.d:
+        if len(key) != self.d+self.np:
             raise Exception('Invalid number of dimensions.')
         
         basis_new = []
         basis_new_param = []
         bounds_new = []
-        knots = self.knots.copy()
-        weights = self.weights.copy()
+        
+        weights = self.weights.clone()
         
         axes = [] 
         for k, id in enumerate(key):
@@ -640,19 +640,33 @@ class PatchNURBS(GeometryPatch):
                 raise Exception("Only scalars are permitted")
 
         weights_new = np.sum(weights,axis=tuple(axes))
-        knots_new = np.sum(self.knots*weights[...,None], axis=tuple(axes))
+        knots_new = np.sum(self.control_points*weights[...,None], axis=tuple(axes))
         knots_new = knots_new/weights_new[...,None]
         
                
         return PatchNURBS(basis_new,knots_new, weights_new, self.rand_key, bounds=bounds_new)
     
     @staticmethod
-    def interpolate_parameter_dependent(self, control_points_function, weights_function, basis_solution, basis_param):
+    def interpolate_parameter_dependent(control_points_function, weights_function, basis_solution, basis_param, eps = 1e-12):
         
-        parameter_grid = []
-        
+        parameter_grid = [b.interpolating_points()[0] for b in basis_param]
+        Ns = [b.N for b in basis_solution]
+        Nps = [b.N for b in basis_param]
+        d = len(Ns)        
 
-        return self.__init__(basis_solution, basis_param, control_points, weights)
+        
+        
+        faux = lambda I: weights_function[tuple(I[:(d)])](tn.tensor( [parameter_grid[k][idx] for k, idx in enumerate(I[d:])] )) if callable(weights_function[tuple(I[:(d)])]) else weights_function[tuple(I[:(d)])]
+        faux2 =lambda I: tn.tensor([faux(i) for i in I])
+        weights = tntt.interpolate.dmrg_cross(faux2, Ns+Nps, eps, eval_vect = True).round(eps)
+
+        faux = lambda I: control_points_function[tuple(I[:(d+1)])](tn.tensor( [parameter_grid[k][idx] for k, idx in enumerate(I[(d+1):])] )) if callable(control_points_function[tuple(I[:(d+1)])]) else control_points_function[tuple(I[:(d+1)])]
+        faux2 =lambda I: tn.tensor([faux(i) for i in I])
+        control_points = tntt.interpolate.dmrg_cross(faux2, [d]+Ns+Nps, eps, eval_vect = True).round(eps)
+        
+        control_points = [control_points[k,...].round(eps) for k in range(control_points.N[0])]
+
+        return PatchNURBS(basis_solution, basis_param, control_points, weights)
     
 class PatchBSpline(GeometryPatch):
 
