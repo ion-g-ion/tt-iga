@@ -11,14 +11,15 @@ class ParameterDependentControlPoints():
         
     def __getitem__(self, key):
 
-        return self._arr[key]
+        return self.__arr[key]
 
     def __call__(self, x):
         arr = self.__arr.flatten()
+        result = np.zeros(arr.size)
         for i in range(arr.size):
-            arr[i] = arr[i](x) if callable(arr[i]) else arr[i]
-        arr = arr.reshape(self.__arr.shape)
-        return arr
+            result[i] = float(arr[i](x)) if callable(arr[i]) else arr[i]
+        result = result.reshape(self.__arr.shape)
+        return result
 
 class ParameterDependentWeights():
 
@@ -31,4 +32,12 @@ class ParameterDependentWeights():
         
     def __getitem__(self, key):
         return self.__arr[key]
+
+    def __call__(self, x):
+        arr = self.__arr.flatten()
+        result = np.zeros(arr.size)
+        for i in range(arr.size):
+            result[i] = float(arr[i](x)) if callable(arr[i]) else arr[i]
+        result = result.reshape(self.__arr.shape)
+        return result
 

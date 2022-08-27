@@ -12,15 +12,15 @@ import pandas as pd
 #%% cylinder woth material in physical domain
 deg = 2
 Ns = np.array(3*[64])-deg+1
-baza1 = tt_iga.BSplineBasis(np.concatenate((np.linspace(0.0, 0.5, Ns[0]//2), np.linspace(0.5, 1, Ns[0]//2))), deg)
-baza2 = tt_iga.BSplineBasis(np.concatenate((np.linspace(0.0, 0.5, Ns[1]//2), np.linspace(0.5, 1, Ns[1]//2))), deg)
-baza3 = tt_iga.BSplineBasis(np.concatenate((np.linspace(0.0, 0.5, Ns[2]//2), np.linspace(0.5, 1, Ns[2]//2))), deg)
+baza1 = tt_iga.bspline.BSplineBasis(np.concatenate((np.linspace(0.0, 0.5, Ns[0]//2), np.linspace(0.5, 1, Ns[0]//2))), deg)
+baza2 = tt_iga.bspline.BSplineBasis(np.concatenate((np.linspace(0.0, 0.5, Ns[1]//2), np.linspace(0.5, 1, Ns[1]//2))), deg)
+baza3 = tt_iga.bspline.BSplineBasis(np.concatenate((np.linspace(0.0, 0.5, Ns[2]//2), np.linspace(0.5, 1, Ns[2]//2))), deg)
 
 Basis = [baza1, baza2, baza3]
 N = [baza1.N, baza2.N, baza3.N]
 
 nl = 8
-Basis_param = [tt_iga.LagrangeLeg(nl, [-0.2, 0.2])]
+Basis_param = [tt_iga.lagrange.LagrangeLeg(nl, [-0.2, 0.2])]
 
 
 def xc(u, v): return u*np.sqrt(1-v**2/2)

@@ -68,15 +68,28 @@ class Function():
         Returns:
             [type]: [description]
         """
-        if deriv == None:
-            deriv = [False]*len(self.N)
-        
-        Bs = [tn.tensor(self.basis[i](x[i].numpy(),derivative=deriv[i]), dtype = tn.float64).t() for i in range(len(self.N))]
-        B_tt = tntt.TT([tn.reshape(m,[1,m.shape[0],-1,1]) for m in Bs])
-        
-        val = B_tt @ self.dofs
-        
-        return val 
+        if isinstance(x,list):
+            if deriv == None:
+                deriv = [False]*len(self.N)
+            
+            Bs = [tn.tensor(self.basis[i](x[i].numpy(),derivative=deriv[i]), dtype = tn.float64).t() for i in range(len(self.N))]
+            B_tt = tntt.TT([tn.reshape(m,[1,m.shape[0],-1,1]) for m in Bs])
+            
+            val = B_tt @ self.dofs
+        else:
+            if deriv == None:
+                deriv = [False]*len(self.N)
+            
+            Bs = [tn.tensor(self.basis[i](x[:,i].numpy(),derivative=deriv[i]), dtype = tn.float64) for i in range(len(self.N))]
+
+            val = tn.ones((x.shape[0],1))
+
+            for i in range(len(self.N)):
+                tmp = tn.tensordot(val,self.dofs.cores[i],([1],[0]))
+                val = tn.einsum('ikl,ki->il', tmp,Bs[i])
+            val = val[:,0]
+
+        return val
     
     def L2error(self, function, geometry_map = None, level = 32):
         """
@@ -218,7 +231,6 @@ class GeometryPatch():
             G12, G22, G32 = self.__call__(y, 1, eps = eps)
             G13, G23, G33 = self.__call__(y, 2, eps = eps)
 
-            
             det1 = G11*G22*G33
             det2 = G12*G21*G31
             det3 = G31*G21*G32
@@ -309,7 +321,7 @@ class GeometryPatch():
             Np = len(self.basis[self.d:])
             meshgrid = tntt.meshgrid([x for x in Xg[self.d:]])
             meshgrid = Xs + [tntt.ones(Xs[0].N[:self.d])**m for m in meshgrid]
-            print(meshgrid)
+            # print(meshgrid)
             evals = tntt.interpolate.function_interpolate(function, meshgrid, eps, verbose = False)
             
 
@@ -321,6 +333,72 @@ class GeometryPatch():
             Wtt = Wtt**tntt.ones(self.ells)
 
         return (Btt@(evals*omega*Wtt)).round(eps)
+
+    
+    def gradient_physical(self, basis_space, function, eps = 1e-12):
+
+        ps = [tn.tensor(b.interpolating_points()[0], dtype = tn.float64) for b in basis_space]
+        Ms = [tn.linalg.inv(tn.tensor(b.interpolating_points()[1], dtype = tn.float64)).T for b in basis_space]
+
+        if self.d == 3:
+            g11, g21, g31 = self.__call__(ps, 0)
+            g12, g22, g32 = self.__call__(ps, 1)
+            g13, g23, g33 = self.__call__(ps, 2)
+
+        elif self.d==2:
+            g11, g21 = self.__call__(ps, 0)
+            g12, g22 = self.__call__(ps, 1)
+            
+        Og_tt = self.eval_omega(ps, eps)
+
+        if self.d==3:
+            # adjugate
+            tme = datetime.datetime.now()
+            h11,h12,h13 = (g22*g33-g23*g32, g13*g32-g12*g33, g12*g23-g13*g22)
+            h21,h22,h23 = (g23*g31-g21*g33, g11*g33-g13*g31, g13*g21-g11*g23)
+            h31,h32,h33 = (g21*g32-g22*g31, g12*g31-g11*g32, g11*g22-g12*g21)
+            
+            H = [[h11.round(eps),h12.round(eps),h13.round(eps)],[h21.round(eps),h22.round(eps),h23.round(eps)],[h31.round(eps),h32.round(eps),h33.round(eps)]]
+
+            grady1 = function(ps+[tn.tensor(b.interpolating_points()[0]) for b in self.basis[self.d:]], [True,False,False]+(len(function.N)-3)*[False])
+            grady2 = function(ps+[tn.tensor(b.interpolating_points()[0]) for b in self.basis[self.d:]], [False,True,False]+(len(function.N)-3)*[False])
+            grady3 = function(ps+[tn.tensor(b.interpolating_points()[0]) for b in self.basis[self.d:]], [False,False,True]+(len(function.N)-3)*[False])
+
+            grad1 = (h11*grady1+h21*grady2+h31*grady3).round(eps).mprod(Ms, [0,1,2])
+            grad2 = (h12*grady1+h22*grady2+h32*grady3).round(eps).mprod(Ms, [0,1,2])
+            grad3 = (h13*grady1+h23*grady2+h33*grady3).round(eps).mprod(Ms, [0,1,2])
+
+            g1 = Function(function.basis)
+            g2 = Function(function.basis)
+            g3 = Function(function.basis)
+            g1.dofs = grad1
+            g2.dofs = grad2
+            g3.dofs = grad3
+            return grad1, grad2, grad3
+        elif self.d==2:
+            # Ogi_tt = 1/Og_tt
+            # Ogi_tt = tntt.elementwise_divide(tntt.ones(Og_tt.N, dtype = tn.float64), Og_tt, eps = 1e-11, starting_tensor = None, nswp = 50, kick = 8,  verbose = False, preconditioner = 'c')
+            h11, h12 = (g22,-g12)
+            h21, h22 = (-g21,g11)
+            h11,h12,h21,h22 = h11.round(eps),h12.round(eps),h21.round(eps),h22.round(eps)
+
+            grady1 = function(ps+[tn.tensor(b.interpolating_points()[0]) for b in self.basis[self.d:]], [True,False]+(len(function.N)-2)*[False]).round(eps)
+            grady2 = function(ps+[tn.tensor(b.interpolating_points()[0]) for b in self.basis[self.d:]], [False,True]+(len(function.N)-2)*[False]).round(eps)
+
+
+            grad1 = (h11*grady1+h21*grady2).round(eps).mprod(Ms,[0,1]) / Og_tt
+            grad2 = (h12*grady1+h22*grady2).round(eps).mprod(Ms,[0,1]) / Og_tt
+
+            g1 = Function(function.basis)
+            g2 = Function(function.basis)
+
+            g1.dofs = grad1
+            g2.dofs = grad2
+            return g1, g2
+        
+
+        
+
 
     def stiffness_interp(self, basis_space, eps = 1e-10, func = None, func_reference = None, rankinv = 1024, device = None, verb = False, qtt = False):
         """
@@ -585,8 +663,8 @@ class PatchNURBS(GeometryPatch):
 
             for ctl in self.control_points:
                 tmp = (dBtt @ (self.weights*ctl))*den- (Btt @ (self.weights*ctl)) * (dBtt @ self.weights)
-                result.append(tmp*deninv*deninv)
-
+                result.append(tmp.round(eps)*deninv*deninv)
+      
         return [r.round(eps) for r in result]
                 
     def __repr__(self):
@@ -661,7 +739,7 @@ class PatchNURBS(GeometryPatch):
         weights = tntt.interpolate.dmrg_cross(faux2, Ns+Nps, eps, eval_vect = True).round(eps)
 
         faux = lambda I: control_points_function[tuple(I[:(d+1)])](tn.tensor( [parameter_grid[k][idx] for k, idx in enumerate(I[(d+1):])] )) if callable(control_points_function[tuple(I[:(d+1)])]) else control_points_function[tuple(I[:(d+1)])]
-        faux2 =lambda I: tn.tensor([faux(i) for i in I])
+        faux2 =lambda I: tn.tensor([float(faux(i)) for i in I])
         control_points = tntt.interpolate.dmrg_cross(faux2, [d]+Ns+Nps, eps, eval_vect = True).round(eps)
         
         control_points = [control_points[k,...].round(eps) for k in range(control_points.N[0])]
@@ -681,7 +759,7 @@ class PatchBSpline(GeometryPatch):
         
         
             
-    def __call__(self, y, derivative = None):
+    def __call__(self, y, derivative = None, eps = 1e-15):
         
             
         Bs = [tn.tensor(self.basis[i](y[i], derivative = derivative==i)).t() for i in range(len(y))]

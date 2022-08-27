@@ -55,7 +55,7 @@ def create_geometry( ):
 
     knots[:,1,:] = 0.5*(knots[:,0,:]+knots[:,2,:])
     
-    knots[0,3,:] = np.array([(0.75*ri+0.25*Do)/np.sqrt(2),(0.75*ri+0.25*Do)/np.sqrt(2)])
+    knots[0,3,:] = np.array([(0.85*ri+0.15*Do)/np.sqrt(2),(0.85*ri+0.15*Do)/np.sqrt(2)])
     knots[2,3,:] = np.array([Dc+blc,hi])
     knots[1,3,:] = 0.5*(knots[0,3,:]+knots[2,3,:])
     knots[3,3,:] = np.array([Di-bli,hi])
@@ -63,9 +63,9 @@ def create_geometry( ):
     
     knots[4,4,:] = np.array([Do,Do*np.tan(np.pi/8)])
     knots[0,4,:] = np.array([Do/np.sqrt(2),Do/np.sqrt(2)])
-    knots[1,4,:] = 0.75*knots[0,4,:]+0.25*knots[4,4,:]
-    knots[2,4,:] = 0.5*knots[0,4,:]+0.5*knots[4,4,:]
-    knots[3,4,:] = 0.25*knots[0,4,:]+0.75*knots[4,4,:]
+    knots[1,4,:] = 0.8*knots[0,4,:]+0.2*knots[4,4,:]
+    knots[2,4,:] = 0.6*knots[0,4,:]+0.4*knots[4,4,:]
+    knots[3,4,:] = 0.4*knots[0,4,:]+0.6*knots[4,4,:]
 
     knots_new = np.zeros((7,5,2))
     knots_new[0,...] = knots[0,...]
@@ -86,8 +86,8 @@ knots, weights = create_geometry()
 plt.figure()
 plt.scatter(knots[:,:,0],knots[:,:,1],s=2)
 
-basis1 = tt_iga.bspline.BSplineBasis(np.array([0,0.4,0.4,0.6,0.6,1]),2)
-basis2 = tt_iga.bspline.BSplineBasis(np.array([0,0.15,0.3,0.5,1]),1)
+basis1 = tt_iga.bspline.BSplineBasis(np.array([0,0.4,0.4,0.7,0.7,1]),2)
+basis2 = tt_iga.bspline.BSplineBasis(np.array([0,0.15,0.3,0.4,1]),1)
 
 geom = tt_iga.PatchNURBS([basis1, basis2],[], [tntt.TT(knots[:,:,0]), tntt.TT(knots[:,:,1])], tntt.TT(weights))
 
@@ -118,16 +118,20 @@ plt.figure()
 plt.scatter(X1.numpy().flatten(), X2.numpy().flatten(),s=1,c='green')
 
 
+
+
+
 mu0 = 4*np.pi*1e-7
 mur = 1000
-mu_ref = lambda y: 1/mu0*((y[...,1]<0.5)*(y[...,0]<0.6)*(y[...,0]>0.4)+(y[...,1]<0.3)*(y[...,0]<0.4))+1/(mu0*mur)*tn.logical_not((y[...,1]<0.5)*(y[...,0]<0.6)*(y[...,0]>0.4)+(y[...,1]<0.3)*(y[...,0]<0.4))
+mu_ref = lambda y: 1/mu0*((y[...,1]<0.4)*(y[...,0]<0.7)*(y[...,0]>0.4)+(y[...,1]<0.3)*(y[...,0]<0.4))+1/(mu0*mur)*tn.logical_not((y[...,1]<0.4)*(y[...,0]<0.7)*(y[...,0]>0.4)+(y[...,1]<0.3)*(y[...,0]<0.4))
 
-basis_solution = [tt_iga.bspline.BSplineBasis(np.concatenate((np.linspace(0,0.4,32), np.linspace(0.4,0.6,16),np.linspace(0.6,1,32))),2)]
-basis_solution.append(tt_iga.bspline.BSplineBasis(np.concatenate((np.linspace(0,0.15,20),np.linspace(0.15,0.3,20), np.linspace(0.3,0.5,20),np.linspace(0.5,1,20))),2))
+basis_solution = [tt_iga.bspline.BSplineBasis(np.concatenate((np.linspace(0,0.4,32), np.linspace(0.4,0.7,16),np.linspace(0.7,1,32))),2)]
+basis_solution.append(tt_iga.bspline.BSplineBasis(np.concatenate((np.linspace(0,0.15,20),np.linspace(0.15,0.3,20), np.linspace(0.3,0.4,20),np.linspace(0.4,1,20))),2))
 Mass_tt = geom.mass_interp(basis_solution)
 Stiff_tt = geom.stiffness_interp(basis_solution, func_reference=mu_ref)
 
-Jref = lambda y: 1000000*(y[...,1]<0.5)*(y[...,0]<0.6)*(y[...,0]>0.4)+0.0
+
+Jref = lambda y: 1000000*(y[...,1]<0.4)*(y[...,0]<0.7)*(y[...,0]>0.4)+0.0
 
 rhs_tt = geom.rhs_interp(basis_solution,Jref)
 
@@ -170,3 +174,5 @@ X1,X2 = geom([y1,y2])
 u = dofs_tt.mprod([tn.tensor(basis_solution[0](y1).T),tn.tensor(basis_solution[1](y2).T)],[0,1])
 plt.contour(X1.numpy(), X2.numpy(),u.numpy(),levels=32)
 plt.colorbar()
+plt.show()
+

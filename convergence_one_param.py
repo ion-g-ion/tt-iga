@@ -24,8 +24,8 @@ def solve(Ns,deg,nl,alpha=1/4,eps_solver = 10*1e-9,eps_construction=1e-11,qtt = 
     xc = lambda u,v: u*np.sqrt(1-v**2/2)
     yc = lambda u,v: v*np.sqrt(1-u**2/2)
 
-    xparam = lambda t : xc(t[:,0]*2-1,t[:,1]*2-1)*((1+np.cos((t[:,2]*2-1)*np.pi))*alpha*t[:,3]+1)
-    yparam = lambda t : yc(t[:,0]*2-1,t[:,1]*2-1)*((1+np.cos((t[:,2]*2-1)*np.pi))*alpha*t[:,3]+1)
+    xparam = lambda t : xc(t[:,0]*2-1,t[:,1]*2-1)*((1-np.cos((t[:,2]*2-1)*np.pi))*alpha*t[:,3]+1)
+    yparam = lambda t : yc(t[:,0]*2-1,t[:,1]*2-1)*((1-np.cos((t[:,2]*2-1)*np.pi))*alpha*t[:,3]+1)
     zparam = lambda t : t[:,2]*2-1
 
     geom = tt_iga.PatchBSpline.interpolate_geometry([xparam, yparam, zparam], Basis, Basis_param)
@@ -53,9 +53,9 @@ def solve(Ns,deg,nl,alpha=1/4,eps_solver = 10*1e-9,eps_construction=1e-11,qtt = 
     # uref =lambda x: np.sin(np.pi*2*x[:,0])*np.sin(np.pi*2*x[:,1])*np.sin(np.pi*2*x[:,2])
     # ffun= lambda x: 3*4*np.pi**2*np.sin(np.pi*2*x[:,0])*np.sin(np.pi*2*x[:,1])*np.sin(np.pi*2*x[:,2])
     # gfun= lambda x: x[:,0]*0+1.0
-    kx = 2
-    ky = 3
-    uref = lambda x: np.sin(kx*x[:,0])*np.cos(ky*x[:,1])*np.exp(-np.sqrt(kx*kx+ky*ky)*x[:,2])
+    kx = 3
+    ky = 4
+    uref = lambda x: np.cos(kx*x[:,0])*np.cos(ky*x[:,1])*np.exp(-np.sqrt(kx*kx+ky*ky)*x[:,2])
     ffun = lambda x: x[:,0]*0
     
     uref_fun = tt_iga.Function(Basis+Basis_param)
@@ -174,7 +174,7 @@ for d in degs:
         print()
         print('N ',n,' , deg ',d)
         Ns = np.array([n,n,n])
-        dct = solve(Ns,d,8,conventional=1, eps_solver=1e-9 if (d==3 and n>100) else 1e-8,qtt = True)
+        dct = solve(Ns,d,8,conventional=1, eps_solver=1e-10 if (d==3 and n>100) else 1e-8,qtt = True)
         dct['n'] = n
         dct['deg'] = d
         results1.append(dct)
