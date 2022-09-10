@@ -44,13 +44,12 @@ def solve(Np, Ns = [40,20,80], deg = 2 ,nl = 8):
     zparam = lambda t : w*t[:,0]
 
     # instantiate the GeometryMapping object. It is used for intepolating, evaluating and computing the discrete operators corresponding to a parameter dependent geometry
-    geom = tt_iga.Geometry(Basis+Basis_param)
-    # interpolate the geometry parametrization
-    geom.interpolate([xparam, yparam, zparam])
+    geom = tt_iga.PatchBSpline.interpolate_geometry([xparam, yparam, zparam], Basis, Basis_param, eps = 1e-13)
 
+    print(geom.control_points[0].norm(), geom.control_points[1].norm(), geom.control_points[2].norm())
     # compute the mass matrix in TT
     tme = datetime.datetime.now() 
-    Mass_tt = geom.mass_interp(eps=1e-11)
+    Mass_tt = geom.mass_interp(Basis, eps=1e-11)
     tme = datetime.datetime.now() -tme
     print('Time mass matrix ',tme.total_seconds())
     
@@ -62,7 +61,7 @@ def solve(Np, Ns = [40,20,80], deg = 2 ,nl = 8):
     #     dct['time stiff GPU'] = tme.total_seconds()
     
     tme = datetime.datetime.now() 
-    Stt = geom.stiffness_interp( eps = 1e-9, qtt = True, verb=True, device = None)
+    Stt = geom.stiffness_interp(Basis, eps = 1e-9, qtt = True, verb=True, device = None)
     tme = datetime.datetime.now() -tme
     print('Time stiffness matrix ',tme.total_seconds())
     dct['time stiff'] = tme.total_seconds()
@@ -112,6 +111,9 @@ def solve(Np, Ns = [40,20,80], deg = 2 ,nl = 8):
     dct['memory rhs'] = tntt.numel(rhs_tt)*8/1e6
     dct['memory solution'] = tntt.numel(dofs_tt)*8/1e6
     dct['np'] = Np
+    print('Memory operator',dct['memory system mat'],' MB')
+    print('Memory stiff',dct['memory stiff'],' MB') 
+    print('Memory solution',dct['memory solution'],' MB')
     # check the error for the case Theta = 0 (cylinder capacitor)
     fspace = tt_iga.Function(Basis+Basis_param)
     fspace.dofs = dofs_tt
@@ -145,5 +147,8 @@ if __name__ == '__main__':
     # print header 
     df = pd.DataFrame([[el for el in v.values() ] for v in dct_results.values()], columns = [k for k in dct_results[2]])
     print(df)
-    df.to_pickle('./data/cshape_gpu.pickle')
-    eoc = lambda x,y: np.log(y[1:]/y[:-1])/np.log(x[1:]/x[:-1])
+    df.to_pickle('./cshape_gpu.pickle')
+    eoc = lambda x,y: np.log(y[1:]/y[:-1])/(x[1:]/x[:-1])
+
+    for Np in Nps:
+        print('%d & %3.2f &  %3.2f & %3.2f &  %3.2f \\\\'%(Np,dct_results[Np]['time stiff'],dct_results[Np]['time solver'],dct_results[Np]['memory system mat'],dct_results[Np]['memory solution']))
