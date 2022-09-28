@@ -44,13 +44,12 @@ yparam = lambda t : (2-h+line(t[:,1],0,interface_func(t[:,2],t[:,3:])*damp(t[:,2
 zparam = lambda t : w*t[:,0]
 
 # instantiate the GeometryMapping object. It is used for intepolating, evaluating and computing the discrete operators corresponding to a parameter dependent geometry
-geom = tt_iga.Geometry(Basis+Basis_param)
-# interpolate the geometry parametrization
-geom.interpolate([xparam, yparam, zparam])
+geom = tt_iga.PatchBSpline.interpolate_geometry([xparam, yparam, zparam], Basis, Basis_param, eps = 1e-13)
  
 # compute the mass matrix in TT
 tme = datetime.datetime.now() 
-Mass_tt = geom.mass_interp(eps=1e-11)
+
+Mass_tt = geom.mass_interp(Basis, eps=1e-11)
 tme = datetime.datetime.now() -tme
 print('Time mass matrix ',tme.total_seconds())
 
@@ -62,7 +61,7 @@ print('Time mass matrix ',tme.total_seconds())
 #     dct['time stiff GPU'] = tme.total_seconds()
 
 tme = datetime.datetime.now() 
-Stt = geom.stiffness_interp( eps = 1e-9, qtt =  qtt, verb=True, device = None)
+Stt = geom.stiffness_interp(Basis, eps = 1e-9, qtt =  qtt, verb=True, device = None)
 tme = datetime.datetime.now() -tme
 print('Time stiffness matrix ',tme.total_seconds())
 
@@ -88,16 +87,19 @@ M_tt = M_tt.round(1e-11)
 
 # solve the system
 eps_solver = 1e-7
-tme_amen = datetime.datetime.now() 
-dofs_tt = tntt.solvers.amen_solve(M_tt, rhs_tt, x0 = tntt.ones(rhs_tt.N), eps = eps_solver, nswp = 50, preconditioner = 'c',  verbose = False)
-tme_amen = (datetime.datetime.now() -tme_amen).total_seconds() 
-print('Time solver', tme_amen)
+
 
 if tn.cuda.is_available():
+    cuda_name = 'cuda:1'
     tme_amen_gpu = datetime.datetime.now()
-    dofs_tt = tntt.solvers.amen_solve(M_tt.cuda(), rhs_tt.cuda(), x0 = tntt.ones(rhs_tt.N).cuda(), eps = eps_solver, nswp = 50, preconditioner = 'c', verbose = False).cpu()
+    dofs_tt = tntt.solvers.amen_solve(M_tt.to(cuda_name), rhs_tt.to(cuda_name), x0 = tntt.ones(rhs_tt.N).to(cuda_name), eps = eps_solver, nswp = 50, preconditioner = 'c', verbose = False).cpu()
     tme_amen_gpu = (datetime.datetime.now() -tme_amen_gpu).total_seconds() 
     print('Time solver GPU', tme_amen_gpu)
+else:
+    tme_amen = datetime.datetime.now() 
+    dofs_tt = tntt.solvers.amen_solve(M_tt, rhs_tt, x0 = tntt.ones(rhs_tt.N), eps = eps_solver, nswp = 50, preconditioner = 'c',  verbose = False)
+    tme_amen = (datetime.datetime.now() -tme_amen).total_seconds() 
+    print('Time solver', tme_amen)
 
 # save stats in the dictionary
 print('Rank matrix',np.mean(M_tt.R))
@@ -127,17 +129,18 @@ err = tn.max(tn.abs(u_val-u_ref))
 print('\nMax err %e\n\n'%(err))
 
 random_params4plot = [2*var*(tn.rand((1))-0.5) for i in range(Np)]
-u_val = fspace([tn.tensor([0.5]), tn.linspace(0,1,128), tn.linspace(0,1,128)]+random_params4plot).full()
-x,y,z = geom([tn.tensor([0.5]), tn.linspace(0,1,128), tn.linspace(0,1,128)]+random_params4plot)
+u_val = fspace([tn.tensor([0.5]), tn.linspace(0,1,32), tn.linspace(0,1,32)]+random_params4plot).full()
+x,y,z = geom([tn.tensor([0.5]), tn.linspace(0,1,32), tn.linspace(0,1,32)]+random_params4plot)
 
-plt.figure()
-fig = geom.plot_domain(random_params4plot, [(0,1),(0,1),(0.0,1)], surface_color=None, wireframe = False, alpha=0.1, n=64, frame_color = 'k')
+fig = plt.figure(figsize=(6,4))
+ax = plt.axes(projection='3d')
+geom.plot_domain(random_params4plot, [(0,1),(0,1),(0.0,1)], fig = fig, surface_color=None, wireframe = False, alpha=0.0, n=64, frame_color = 'k', line_width = 1.5)
 ax = fig.gca()
 C = u_val.numpy().squeeze()
 norm = matplotlib.colors.Normalize(vmin=C.min(),vmax=C.max())
-C = plt.cm.jet(norm(C))
+C = plt.cm.RdYlBu(norm(C))
 C[:,:,-1] = 1
-ax.plot_surface(x.numpy().squeeze(), y.numpy().squeeze(), z.numpy().squeeze(), edgecolors=None, linewidth=0, facecolors = C, antialiased=True, rcount=256, ccount=256, alpha=0.5)
+ax.plot_surface(x.numpy().squeeze(), y.numpy().squeeze(), z.numpy().squeeze(), edgecolors=None, linewidth=0, facecolors = C, antialiased=True, rcount=256, ccount=256, alpha=0.7)
 fig.gca().set_xlabel(r'$x_1$', fontsize=14)
 fig.gca().set_ylabel(r'$x_2$', fontsize=14)
 fig.gca().set_zlabel(r'$x_3$', fontsize=14)
@@ -148,10 +151,16 @@ fig.gca().set_yticks([-2,-1.5,-1])
 fig.gca().set_zticks([0,0.5,1])
 fig.gca().tick_params(axis='both', labelsize=14)
 fig.gca().set_box_aspect(aspect = (1.5,1,1))
+import matplotlib.cm
+m = matplotlib.cm.ScalarMappable(cmap=plt.cm.RdYlBu, norm=norm)
+m.set_array([])
+plt.colorbar(m, location = 'left')
+plt.savefig('Cshape_solution.pdf')
 
-plt.figure()
-fig = geom.plot_domain([tn.tensor([0.0])]*Np, [(0,1),(0,1),(0.0,1)], surface_color='blue', wireframe = False, alpha=0.1, n=64, frame_color = 'k')
-for i in range(5): geom.plot_domain([2*var*(tn.rand((1))-0.5) for i in range(Np)],[(0,1),(0,1),(0.0,1)], fig = fig, surface_color=None, wireframe = False, alpha=0.1, n=64, frame_color = 'r')
+fig = plt.figure(figsize=(6,4))
+ax = plt.axes(projection='3d')
+geom.plot_domain([tn.tensor([0.0])]*Np, [(0,1),(0,1),(0.0,1)], fig = fig, surface_color='blue', wireframe = False, alpha=0.1, n=64, frame_color = 'k')
+for i in range(5): geom.plot_domain([2*var*(tn.rand((1))-0.5) for i in range(Np)],[(0,1),(0,1),(0.0,1)], fig = fig, surface_color=None, wireframe = False, alpha=0.1, n=64, frame_color = 'r',line_width = 0.5)
 fig.gca().set_xlabel(r'$x_1$', fontsize=14)
 fig.gca().set_ylabel(r'$x_2$', fontsize=14)
 fig.gca().set_zlabel(r'$x_3$', fontsize=14)
@@ -162,3 +171,4 @@ fig.gca().set_yticks([-2,-1.5,-1])
 fig.gca().set_zticks([0,0.5,1])
 fig.gca().tick_params(axis='both', labelsize=14)
 fig.gca().set_box_aspect(aspect = (1.5,1,1))
+plt.savefig('Cshape_params.pdf')

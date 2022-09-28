@@ -452,6 +452,7 @@ class GeometryPatch():
             if verb: print('time omega inv' , tme,' rank ',Ogi_tt.R,flush=True)
             #if verb: print('invert error ',(Ogi_tt*Og_tt-tt.ones(Og_tt.n)).norm()/tt.ones(Og_tt.n).norm())
             Ogi_tt = Ogi_tt.round(eps)
+            #Ogi_tt = Ogi_tt.to(device)
         else:
             pass
             # Ogi_tt = tntt.elementwise_divide(tntt.ones(Og_tt.N, dtype = tn.float64, device = device), Og_tt, eps = eps, starting_tensor = None, nswp = 50, kick = 8)
@@ -470,6 +471,7 @@ class GeometryPatch():
                 if verb: print('rank of Ftt is ',F_tt.R)
         else:
             F_tt = tntt.ones(Og_tt.N)
+        # F_tt = F_tt.to(device)
 
         if qtt:
             F_tt = tntt.reshape(F_tt,Nqtt) 
@@ -481,25 +483,25 @@ class GeometryPatch():
             g11, g21, g31 = self.__call__(ps, 0)
             g12, g22, g32 = self.__call__(ps, 1)
             g13, g23, g33 = self.__call__(ps, 2)
-            if device!=None:
-                g11 = g11.to(device)
-                g12 = g12.to(device)
-                g13 = g13.to(device)
-                g21 = g21.to(device)
-                g22 = g22.to(device)
-                g23 = g23.to(device)
-                g31 = g31.to(device)
-                g32 = g32.to(device)
-                g33 = g33.to(device)
+            # if device!=None:
+            #     g11 = g11.to(device)
+            #     g12 = g12.to(device)
+            #     g13 = g13.to(device)
+            #     g21 = g21.to(device)
+            #     g22 = g22.to(device)
+            #     g23 = g23.to(device)
+            #     g31 = g31.to(device)
+            #     g32 = g32.to(device)
+            #     g33 = g33.to(device)
         elif self.d==2:
             g11, g21 = self.__call__(ps, 0)
             g12, g22 = self.__call__(ps, 1)
             
-            if device!=None:
-                g11 = g11.to(device)
-                g12 = g12.to(device)
-                g21 = g21.to(device)
-                g22 = g22.to(device)
+            # if device!=None:
+            #     g11 = g11.to(device)
+            #     g12 = g12.to(device)
+            #     g21 = g21.to(device)
+            #     g22 = g22.to(device)
     
         if self.d==3:
             # adjugate
@@ -529,8 +531,8 @@ class GeometryPatch():
             H = [[h11.round(eps),h12.round(eps)],[h21.round(eps),h22.round(eps)]]
             
         
-        Bs = [tn.tensor(basis_space[i](ps[i]).transpose()).to(device) for i in range(self.d)]
-        dBs = [tn.tensor(basis_space[i](ps[i],derivative = True).transpose()).to(device) for i in range(self.d)]
+        Bs = [tn.tensor(basis_space[i](ps[i]).transpose()) for i in range(self.d)]
+        dBs = [tn.tensor(basis_space[i](ps[i],derivative = True).transpose()) for i in range(self.d)]
                 
         N = [b.N for b in basis_space]+self.ells
         S = None
@@ -566,7 +568,10 @@ class GeometryPatch():
                     tmp = tmp*Ogi_tt
                     tmp = tmp.round(eps,rankinv)
                 else:
-                    tmp = tntt.elementwise_divide(tmp,Og_tt, starting_tensor = tmp, eps=eps, kick=8, nswp = 50, local_iterations = 20, resets = 4, preconditioner = 'c')*F_tt 
+                    if device!=None and device!='cpu':
+                        tmp = (tntt.elementwise_divide(tmp.to(device),Og_tt.to(device), starting_tensor = tmp.to(device), eps=eps, kick=8, nswp = 50, local_iterations = 20, resets = 4, preconditioner = 'c')*F_tt.to(device)).cpu()
+                    else:
+                        tmp = tntt.elementwise_divide(tmp, Og_tt, starting_tensor = tmp, eps=eps, kick=8, nswp = 50, local_iterations = 20, resets = 4, preconditioner = 'c')*F_tt
                     # tmp = tmp*Ogi_tt*F_tt
 
                 #  print('Rank of product',tmp.r)
@@ -620,7 +625,7 @@ class GeometryPatch():
 
         return SS
         
-    def plot_domain(self, params = None, bounds = None, fig = None, wireframe = True, frame_color = 'r', n = 12, surface_color = 'blue',alpha = 0.4):
+    def plot_domain(self, params = None, bounds = None, fig = None, wireframe = True, frame_color = 'r', n = 12, surface_color = 'blue',alpha = 0.4, line_width = 1.0):
         """
         Plot the domain for a given parameter (if any parameter dependence exists).
         Args:
@@ -671,40 +676,40 @@ class GeometryPatch():
         if frame_color != None:
             
             x,y,z = self([tn.linspace(bounds[0][0],bounds[0][1],n, dtype = tn.float64),tn.linspace(bounds[1][0],bounds[1][0],1, dtype = tn.float64),tn.linspace(bounds[2][0],bounds[2][0],1, dtype = tn.float64)]+([] if params ==None else params))
-            ax.plot(x.full().numpy().flatten(), y.full().numpy().flatten(), z.full().numpy().flatten(), frame_color)
+            ax.plot(x.full().numpy().flatten(), y.full().numpy().flatten(), z.full().numpy().flatten(), frame_color, linewidth = line_width)
             
             x,y,z = self([tn.linspace(bounds[0][0],bounds[0][1],n, dtype = tn.float64),tn.linspace(bounds[1][0],bounds[1][0],1, dtype = tn.float64),tn.linspace(bounds[2][1],bounds[2][1],1, dtype = tn.float64)]+([] if params ==None else params))
-            ax.plot(x.full().numpy().flatten(), y.full().numpy().flatten(), z.full().numpy().flatten(), frame_color)
+            ax.plot(x.full().numpy().flatten(), y.full().numpy().flatten(), z.full().numpy().flatten(), frame_color, linewidth = line_width)
             
             x,y,z = self([tn.linspace(bounds[0][0],bounds[0][1],n, dtype = tn.float64),tn.linspace(bounds[1][1],bounds[1][1],1, dtype = tn.float64),tn.linspace(bounds[2][0],bounds[2][0],1, dtype = tn.float64)]+([] if params ==None else params))
-            ax.plot(x.full().numpy().flatten(), y.full().numpy().flatten(), z.full().numpy().flatten(), frame_color)
+            ax.plot(x.full().numpy().flatten(), y.full().numpy().flatten(), z.full().numpy().flatten(), frame_color, linewidth = line_width)
             
             x,y,z = self([tn.linspace(bounds[0][0],bounds[0][1],n, dtype = tn.float64),tn.linspace(bounds[1][1],bounds[1][1],1, dtype = tn.float64),tn.linspace(bounds[2][1],bounds[2][1],1, dtype = tn.float64)]+([] if params ==None else params))
-            ax.plot(x.full().numpy().flatten(), y.full().numpy().flatten(), z.full().numpy().flatten(), frame_color)
+            ax.plot(x.full().numpy().flatten(), y.full().numpy().flatten(), z.full().numpy().flatten(), frame_color, linewidth = line_width)
             
             x,y,z = self([tn.linspace(bounds[0][0],bounds[0][0],1, dtype = tn.float64),tn.linspace(bounds[1][0],bounds[1][1],n, dtype = tn.float64),tn.linspace(bounds[2][0],bounds[2][0],1, dtype = tn.float64)]+([] if params ==None else params))
-            ax.plot(x.full().numpy().flatten(), y.full().numpy().flatten(), z.full().numpy().flatten(), frame_color)
+            ax.plot(x.full().numpy().flatten(), y.full().numpy().flatten(), z.full().numpy().flatten(), frame_color, linewidth = line_width)
             
             x,y,z = self([tn.linspace(bounds[0][0],bounds[0][0],1, dtype = tn.float64),tn.linspace(bounds[1][0],bounds[1][1],n, dtype = tn.float64),tn.linspace(bounds[2][1],bounds[2][1],1, dtype = tn.float64)]+([] if params ==None else params))
-            ax.plot(x.full().numpy().flatten(), y.full().numpy().flatten(), z.full().numpy().flatten(), frame_color)
+            ax.plot(x.full().numpy().flatten(), y.full().numpy().flatten(), z.full().numpy().flatten(), frame_color, linewidth = line_width)
             
             x,y,z = self([tn.linspace(bounds[0][1],bounds[0][1],1, dtype = tn.float64),tn.linspace(bounds[1][0],bounds[1][1],n, dtype = tn.float64),tn.linspace(bounds[2][0],bounds[2][0],1, dtype = tn.float64)]+([] if params ==None else params))
-            ax.plot(x.full().numpy().flatten(), y.full().numpy().flatten(), z.full().numpy().flatten(), frame_color)
+            ax.plot(x.full().numpy().flatten(), y.full().numpy().flatten(), z.full().numpy().flatten(), frame_color, linewidth = line_width)
             
             x,y,z = self([tn.linspace(bounds[0][1],bounds[0][1],1, dtype = tn.float64),tn.linspace(bounds[1][0],bounds[1][1],n, dtype = tn.float64),tn.linspace(bounds[2][1],bounds[2][1],1, dtype = tn.float64)]+([] if params ==None else params))
-            ax.plot(x.full().numpy().flatten(), y.full().numpy().flatten(), z.full().numpy().flatten(), frame_color)
+            ax.plot(x.full().numpy().flatten(), y.full().numpy().flatten(), z.full().numpy().flatten(), frame_color, linewidth = line_width)
             
             x,y,z = self([tn.linspace(bounds[0][0],bounds[0][0],1, dtype = tn.float64),tn.linspace(bounds[1][0],bounds[1][0],1, dtype = tn.float64),tn.linspace(bounds[2][0],bounds[2][1],n, dtype = tn.float64)]+([] if params ==None else params))
-            ax.plot(x.full().numpy().flatten(), y.full().numpy().flatten(), z.full().numpy().flatten(), frame_color)
+            ax.plot(x.full().numpy().flatten(), y.full().numpy().flatten(), z.full().numpy().flatten(), frame_color, linewidth = line_width)
             
             x,y,z = self([tn.linspace(bounds[0][0],bounds[0][0],1, dtype = tn.float64),tn.linspace(bounds[1][1],bounds[1][1],1, dtype = tn.float64),tn.linspace(bounds[2][0],bounds[2][1],n, dtype = tn.float64)]+([] if params ==None else params))
-            ax.plot(x.full().numpy().flatten(), y.full().numpy().flatten(), z.full().numpy().flatten(), frame_color)
+            ax.plot(x.full().numpy().flatten(), y.full().numpy().flatten(), z.full().numpy().flatten(), frame_color, linewidth = line_width)
             
             x,y,z = self([tn.linspace(bounds[0][1],bounds[0][1],1, dtype = tn.float64),tn.linspace(bounds[1][0],bounds[1][0],1, dtype = tn.float64),tn.linspace(bounds[2][0],bounds[2][1],n, dtype = tn.float64)]+([] if params ==None else params))
-            ax.plot(x.full().numpy().flatten(), y.full().numpy().flatten(), z.full().numpy().flatten(), frame_color)
+            ax.plot(x.full().numpy().flatten(), y.full().numpy().flatten(), z.full().numpy().flatten(), frame_color, linewidth = line_width)
             
             x,y,z = self([tn.linspace(bounds[0][1],bounds[0][1],1, dtype = tn.float64),tn.linspace(bounds[1][1],bounds[1][1],1, dtype = tn.float64),tn.linspace(bounds[2][0],bounds[2][1],n, dtype = tn.float64)]+([] if params ==None else params))
-            ax.plot(x.full().numpy().flatten(), y.full().numpy().flatten(), z.full().numpy().flatten(), frame_color)
+            ax.plot(x.full().numpy().flatten(), y.full().numpy().flatten(), z.full().numpy().flatten(), frame_color, linewidth = line_width)
         
         return fig
 

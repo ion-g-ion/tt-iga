@@ -13,6 +13,7 @@ tn.set_default_dtype(tn.float64)
 def solve(Np, Ns = [40,20,80], deg = 2 ,nl = 8):
     print()
     print('number of parameters ',Np)
+    cuda_dev = 'cuda:1'
     # used to return the results
     dct = {}
 
@@ -66,6 +67,12 @@ def solve(Np, Ns = [40,20,80], deg = 2 ,nl = 8):
     print('Time stiffness matrix ',tme.total_seconds())
     dct['time stiff'] = tme.total_seconds()
 
+    if tn.cuda.is_available():
+        tme = datetime.datetime.now() 
+        Stt = geom.stiffness_interp(Basis, eps = 1e-9, qtt = True, verb=True, device = cuda_dev)
+        tme = datetime.datetime.now() -tme
+        print('Time stiffness matrix (GPU) ',tme.total_seconds())
+        dct['time stiff GPU'] = tme.total_seconds()
     # projection operators for enforcing the BCs
     Pin_tt, Pbd_tt = tt_iga.projectors.get_projectors(N,[[1,1],[0,0],[1,1]])
     Pin_tt = Pin_tt ** tntt.eye([nl]*Np)
@@ -96,7 +103,7 @@ def solve(Np, Ns = [40,20,80], deg = 2 ,nl = 8):
     
     if tn.cuda.is_available():
         tme_amen_gpu = datetime.datetime.now()
-        dofs_tt = tntt.solvers.amen_solve(M_tt.cuda(), rhs_tt.cuda(), x0 = tntt.ones(rhs_tt.N).cuda(), eps = eps_solver, nswp = 50, preconditioner = 'c', verbose = False).cpu()
+        dofs_tt = tntt.solvers.amen_solve(M_tt.to(cuda_dev), rhs_tt.to(cuda_dev), x0 = tntt.ones(rhs_tt.N).to(cuda_dev), eps = eps_solver, nswp = 50, preconditioner = 'c', verbose = False).cpu()
         tme_amen_gpu = (datetime.datetime.now() -tme_amen_gpu).total_seconds() 
         dct['time solver GPU'] = tme_amen_gpu
         print('Time solver GPU', tme_amen_gpu)
@@ -131,12 +138,15 @@ def solve(Np, Ns = [40,20,80], deg = 2 ,nl = 8):
 
     dct['max_err'] = err
     print('\nMax err %e\n\n'%(err))
+
+    tn.cuda.empty_cache() 
+
     return dct
 
 
 if __name__ == '__main__':
 
-    Nps = [2,3,4,5,6,7,8,9,10]
+    Nps = [2,3,4,5,6,7,8,9,10,11,12]
 
     dct_results = dict()
 
@@ -151,4 +161,4 @@ if __name__ == '__main__':
     eoc = lambda x,y: np.log(y[1:]/y[:-1])/(x[1:]/x[:-1])
 
     for Np in Nps:
-        print('%d & %3.2f &  %3.2f & %3.2f &  %3.2f \\\\'%(Np,dct_results[Np]['time stiff'],dct_results[Np]['time solver'],dct_results[Np]['memory system mat'],dct_results[Np]['memory solution']))
+        print('%3d & %12.2f &  %12.2f &  %12.2f &  %12.2f & %12.2f &  %12.2f \\\\'%(Np, dct_results[Np]['time stiff'], dct_results[Np].get('time stiff GPU',0.0), dct_results[Np]['time solver'], dct_results[Np].get('time solver GPU',0.0), dct_results[Np]['memory system mat'], dct_results[Np]['memory solution']))
