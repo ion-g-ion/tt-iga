@@ -467,7 +467,7 @@ class GeometryPatch():
                 
                 if verb: print('rank of Frtt is ',F_tt.r)
             else:
-                F_tt = tntt.interpolate.function_interpolate(func_reference,tntt.meshgrid(ps+params),eps = eps,verbose = False).round(eps)
+                F_tt = tntt.interpolate.function_interpolate(func_reference,tntt.meshgrid(ps+params),eps = eps,verbose = True).round(eps)
                 if verb: print('rank of Ftt is ',F_tt.R)
         else:
             F_tt = tntt.ones(Og_tt.N)
