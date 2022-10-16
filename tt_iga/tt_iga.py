@@ -8,7 +8,7 @@ import datetime
 
 class Function():
       
-    def __init__(self, basis):
+    def __init__(self, basis, dofs = None):
         """
         
 
@@ -17,6 +17,7 @@ class Function():
         """
         self.N = [b.N for b in basis]
         self.basis = basis
+        self.dofs = dofs
         
     def interpolate(self, function, geometry = None, eps = 1e-12):
         """
@@ -90,7 +91,26 @@ class Function():
             val = val[:,0]
 
         return val
-    
+
+    def __getitem__(self, index):
+        basis_new = []
+        idx_contract = []
+        mats = []
+        for k, idx  in enumerate(index):
+            if isinstance(idx,slice):
+                basis_new.append(self.basis[k])
+            else:
+                mats.append(tn.reshape(tn.tensor(self.basis[k](idx)),[1,-1]))
+                idx_contract.append(k)
+
+        dofs = self.dofs.mprod(mats,idx_contract)
+        dofs.reduce_dims()
+        return type(self)(basis_new, dofs)
+
+
+
+            
+            
     def L2error(self, function, geometry_map = None, level = 32):
         """
         

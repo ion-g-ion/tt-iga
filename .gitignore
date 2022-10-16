@@ -134,3 +134,8 @@ dmypy.json
 *.xml
 *.jpeg
 *.pkl
+*.pdf
+*.msh
+tmp.geo
+*-jvsc-*
+*.xml
