@@ -88,6 +88,12 @@ class BSplineBasis:
         self.int_bsp = int_bsp
         
     def __repr__(self):
+        """
+        Represent the basis as a string.
+
+        Returns:
+            str: the string representation of the basis instance.
+        """
         s = 'B-Spline basis of degree '+str(self.deg)+' and dimension '+str(self.N)+' at '+str(id(self))
         return s
     

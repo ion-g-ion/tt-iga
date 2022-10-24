@@ -242,6 +242,16 @@ class GeometryPatch():
         pass
 
     def eval_omega(self, y, eps = 1e-12):
+        """
+        Evaluate the
+
+        Args:
+            y (_type_): _description_
+            eps (_type_, optional): _description_. Defaults to 1e-12.
+
+        Returns:
+            _type_: _description_
+        """
         if self.d==3 and self.dembedding==3:
             #G11, G12, G13 = self.__call__(y, 0)
             #G21, G22, G23 = self.__call__(y, 1)
@@ -420,19 +430,22 @@ class GeometryPatch():
 
     def stiffness_interp(self, basis_space, eps = 1e-10, func = None, func_reference = None, rankinv = 1024, device = None, verb = False, qtt = False):
         """
+        Construct th stiffness in the TT format. 
         
+        Parameter dependency can be taken into account. In this case, the 
 
         Args:
-            eps ([type], optional): [description]. Defaults to 1e-10.
-            func ([type], optional): [description]. Defaults to None.
-            func_reference ([type], optional): [description]. Defaults to None.
-            rankinv (int, optional): [description]. Defaults to 1024.
-            device ([type], optional): [description]. Defaults to None.
-            verb (bool, optional): [description]. Defaults to False.
-            qtt (bool, optional): [description]. Defaults to False.
+            basis_space (_type_): _description_
+            eps (float, optional): The relative accuracy for constructing the stiffness. Defaults to 1e-10.
+            func (_type_, optional): _description_. Defaults to None.
+            func_reference (_type_, optional): _description_. Defaults to None.
+            rankinv (int, optional): _description_. Defaults to 1024.
+            device (_type_, optional): _description_. Defaults to None.
+            verb (bool, optional): _description_. Defaults to False.
+            qtt (bool, optional): use the `QTT` format for the construction process. The result is still returned without quantization. Defaults to False.
 
         Returns:
-            [type]: [description]
+            torchtt.TT: the discrete stiffness operator in the TT format.
         """
         
         ps = []
@@ -736,6 +749,16 @@ class GeometryPatch():
 class PatchNURBS(GeometryPatch):
 
     def __init__(self, basis, basis_param, control_points, weights, bounds = None):
+        """
+        NURBS patch.
+
+        Args:
+            basis (_type_): _description_
+            basis_param (_type_): _description_
+            control_points (_type_): _description_
+            weights (_type_): _description_
+            bounds (_type_, optional): _description_. Defaults to None.
+        """
         # super(PatchNURBS, self).__init__()
         self.d = len(basis)
         self.dembedding = len(control_points)

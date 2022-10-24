@@ -7,18 +7,39 @@ class UnivariateBasis():
     pass
 
 class FunctionSpaceTP():
-    def __init__(self, functions):
+    def __init__(self, functions = []):
         if isinstance(functions, list):
-            self.basis = [b.copy() for b in functions]
-            self._N = [b.N for b in self.basis]
-            self._d = len(self._N)
+            self.__basis = [b.copy() for b in functions]
+            self.__N = tuple([b.N for b in self.__basis])
+            self.__d = len(self._N)
         elif isinstance(functions, UnivariateBasis):
-            self.basis = [functions.copy()]
-            self._N = [self.basis[0].N]
-            self._d = 1
+            self.__basis = [functions.copy()]
+            self.__N = tuple([self.__basis[0].N])
+            self.__d = 1
         else:
             raise Exception("Invalid arguments.")
         
+    @property
+    def dim(self):
+        """
+        The dimension of the bais
+
+        Returns:
+            tuple: the dimension of the basis.
+        """
+        return self.__N
+    
+    @property
+    def basis(self):
+        """
+        Return the bases forming the tensor product space.
+
+        Returns:
+            list[UnivaraiteBasis]: _description_
+        """
+        
+        return self.__basis
+    
     def __repr__(self):
         """
         Represent the object as a string.
@@ -28,36 +49,82 @@ class FunctionSpaceTP():
         """
         
         s = "Tensor-product function space with bases:\n"
-        for b in self.basis:
+        for b in self.__basis:
             s+=str(b)+'\n'
         return s
     
-    def eval(self, dofs, points):
+    def __pow__(self, other):
         """
-        Evaluate a function of the function space on a meshgrid.
+        Implement the Kronecker product between two spaces.
+        The dimension is mutipled.
 
         Args:
-            dofs (torchtt.TT): the dofs of the function from the given function space.
-            points (list[torch.tensor]): list containing the univariate points of the meshgrid where the function given by the dofs tensor has to be evaluated.
+            other (Union[functionSpaceTP,UnivariateBasis]): _description_
 
         Raises:
-            Exception: Invalid argumen: points must be a list of length equal to the number of dimensions.
+            Exception: Kronecker product `**` is possible only between two tensor spaces or a tensor space and an univariate basis.
 
         Returns:
-            torchtt.TT: the evaluation.
+            FunctionSpaceTP: the resulting space.
         """
+        if isinstance(other, FunctionSpaceTP):
+            return FunctionSpaceTP([b.copy() for b in self.__basis ]+[b.copy() for b in other.basis])
+        elif isinstance(other, UnivariateBasis):
+            return FunctionSpaceTP([b.copy() for b in self.__basis ]+[other.copy()])
+        else:
+            raise Exception("Kronecker product `**` is possible only between two tensor spaces or a tensor space and an univariate basis.")
         
-        if len(points)!=self._d:
-            raise Exception("Invalid argumen: points must be a list of length equal to the number of dimensions.")
+    def __rpow__(self, other):
+        """
+        Implement the Kronecker product between two spaces.
+        The dimension is mutipled.
+
+        Args:
+            other (Union[functionSpaceTP,UnivariateBasis]): _description_
+
+        Raises:
+            Exception: Kronecker product `**` is possible only between two tensor spaces or a tensor space and an univariate basis.
+
+        Returns:
+            FunctionSpaceTP: the resulting space.
+        """
+        if isinstance(other, FunctionSpaceTP):
+            return FunctionSpaceTP([b.copy() for b in other.basis]+[b.copy() for b in self.__basis])
+        elif isinstance(other, UnivariateBasis):
+            return FunctionSpaceTP([other.copy()]+[b.copy() for b in self.__basis ])
+        else:
+            raise Exception("Kronecker product `**` is possible only between two tensor spaces or a tensor space and an univariate basis.")
         
+    def interpolate(self, func, composition_map = None):
         
-        Bs = [tn.tensor(b(p).T) for b,p in zip(self.basis,points)]
-        return tntt.rank1TT(Bs) @ dofs
+        pass
     
-    def interpolate(self, func):
+    def __getitem__(self, index):
         
-        dofs = 1
-        return dofs
+        return type(self)(self.__basis[index].copy())
     
-    def quadrature(self, mult = 2):
+    
+    # def eval(self, dofs, points):
+    #     """
+    #     Evaluate a function of the function space on a meshgrid.
+
+    #     Args:
+    #         dofs (torchtt.TT): the dofs of the function from the given function space.
+    #         points (list[torch.tensor]): list containing the univariate points of the meshgrid where the function given by the dofs tensor has to be evaluated.
+
+    #     Raises:
+    #         Exception: Invalid argumen: points must be a list of length equal to the number of dimensions.
+
+    #     Returns:
+    #         torchtt.TT: the evaluation.
+    #     """
+    #     
+    #     if len(points)!=self._d:
+    #         raise Exception("Invalid argumen: points must be a list of length equal to the number of dimensions.")
+    #     
+    #     
+    #     Bs = [tn.tensor(b(p).T) for b,p in zip(self.basis,points)]
+    #     return tntt.rank1TT(Bs) @ dofs
+
+    def quadrature_points(self, mult = 2):
         return 1,1
