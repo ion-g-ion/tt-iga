@@ -9,11 +9,11 @@ class UnivariateBasis():
 class FunctionSpaceTP():
     def __init__(self, functions = []):
         if isinstance(functions, list):
-            self.__basis = [b.copy() for b in functions]
+            self.__basis = [b for b in functions]
             self.__N = tuple([b.N for b in self.__basis])
-            self.__d = len(self._N)
+            self.__d = len(self.__N)
         elif isinstance(functions, UnivariateBasis):
-            self.__basis = [functions.copy()]
+            self.__basis = [functions]
             self.__N = tuple([self.__basis[0].N])
             self.__d = 1
         else:
@@ -95,9 +95,23 @@ class FunctionSpaceTP():
         else:
             raise Exception("Kronecker product `**` is possible only between two tensor spaces or a tensor space and an univariate basis.")
         
-    def interpolate(self, func, composition_map = None):
+    def interpolate(self, func, composition_map = None, eps = 1e-14):
         
-        pass
+        xgs = [tn.tensor(b.interpolatating_points()[0], dtype = tn.float64) for b in self.__basis]
+        Mgs = [tn.tensor(b.interpolatating_points()[1], dtype = tn.float64).t() for b in self.__basis]
+    
+        Gm = tntt.rank1TT(Mgs)
+        
+        if composition_map is None:
+            Xs = tntt.meshgrid(xgs)
+        else:
+            Xs = composition_map(xgs)
+        
+        evals = tntt.interpolate.function_interpolate(func, Xs, eps)
+        
+        dofs = tntt.solvers.amen_solve(Gm, evals, x0 = evals, eps = eps, verbose=True)
+        
+        return dofs
     
     def __getitem__(self, index):
         
